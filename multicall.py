@@ -1,14 +1,14 @@
 from enum import IntEnum
 from typing import Optional, List
 
-from eth_abi import encode_single, decode_single
+from eth_abi import encode, decode
 from eth_utils import function_signature_to_4byte_selector
 from web3 import Web3
 from web3._utils.abi import normalize_event_input_types
-from web3.contract import ContractFunction
+from web3.contract.contract import ContractFunction
 from web3.eth import Eth
 
-MULTICALL_AVAX_ADDRESS = Web3.toChecksumAddress('0xca11bde05977b3631167028862be2a173976ca11')
+MULTICALL_AVAX_ADDRESS = Web3.to_checksum_address('0xca11bde05977b3631167028862be2a173976ca11')
 
 
 class Network(IntEnum):
@@ -80,24 +80,17 @@ class FunctionSignature:
             'name': arg['name'],
             'type': arg['type']
         } for arg in normalize_event_input_types(function.abi.get('inputs', []))]
-        self.input_types_signature = '({})'.format(','.join([inp['type'] for inp in self.inputs]))
-        self.output_types_signature = '({})'.format(','.join(
-            [arg['type'] for arg in normalize_event_input_types(function.abi.get('outputs', []))]
-        ))
-
-        self.signature = '{}{}'.format(
-            self.name,
-            self.input_types_signature
-        )
-
+        self.input_types = [inp['type'] for inp in self.inputs]
+        input_types_signature = '({})'.format(','.join(self.input_types))
+        self.output_types = [arg['type'] for arg in normalize_event_input_types(function.abi.get('outputs', []))]
+        self.signature = '{}{}'.format(self.name, input_types_signature)
         self.fourbyte = function_signature_to_4byte_selector(self.signature)
 
-    def encode_data(self, args=None) -> str:
-        return self.fourbyte + encode_single(self.input_types_signature, args) if args else self.fourbyte
+    def encode_data(self, args=None) -> bytes:
+        return self.fourbyte + encode(self.input_types, args)
 
-    def decode_data(self, output):
-        return decode_single(self.output_types_signature, output)
-
+    def decode_data(self, output: bytes):
+        return decode(self.output_types, output)
 
 class Function:
     def __init__(
@@ -135,7 +128,7 @@ class Function:
         return self.__function.address
 
     @property
-    def data(self) -> str:
+    def data(self) -> bytes:
         return self.__signature.encode_data(self.__function.args)
 
     def decode_output(
